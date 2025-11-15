@@ -1,20 +1,20 @@
 import pandas as pd
-import numpy as np
 import logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 # --- DNA to Protein Translation ---
-def dna_to_protein(dna_seq):
+def dna_to_protein(dna_seq, ambiguous_symbol='-'):
     """
     Translates a DNA sequence into a protein sequence.
 
-    Handles standard nucleotides and ambiguous 'N' codes.
+    Handles standard nucleotides and ambiguous codons.
     Incomplete codons at the end are ignored.
 
     Parameters:
-    dna_seq (str): DNA sequence containing A, T, C, G, possibly N
+    dna_seq (str): DNA sequence containing A, T, C, G, optionally N
+    ambiguous_symbol (str): Symbol used for codons containing ambiguous nucleotides
 
     Returns:
     str: Protein sequence
@@ -24,11 +24,11 @@ def dna_to_protein(dna_seq):
     
     dna_seq = dna_seq.upper()
     
-    # Check for invalid characters beyond N
-    if any(nuc not in "ATCGN" for nuc in dna_seq):
-        raise ValueError("DNA sequence contains invalid characters")
-
-    # Warn if length not divisible by 3
+    # Check for invalid characters (allow A, T, C, G, N)
+    invalid_nucleotides = set(dna_seq) - set("ATCGN")
+    if invalid_nucleotides:
+        raise ValueError(f"Invalid nucleotide symbols found: {invalid_nucleotides}")
+    
     if len(dna_seq) % 3 != 0:
         logging.warning("Sequence length not divisible by 3; last incomplete codon ignored.")
 
@@ -55,15 +55,15 @@ def dna_to_protein(dna_seq):
     for i in range(0, len(dna_seq)-2, 3):
         codon = dna_seq[i:i+3]
         if 'N' in codon:
-            logging.warning(f"Codon '{codon}' contains ambiguous nucleotide 'N'; skipping.")
-            protein_seq += '-'  # Use '-' to indicate skipped/ambiguous codon
+            logging.warning(f"Codon '{codon}' contains ambiguous nucleotide; marking as '{ambiguous_symbol}'")
+            protein_seq += ambiguous_symbol
         else:
-            protein_seq += codon_table.get(codon, 'X')  # 'X' for unknown codons
+            protein_seq += codon_table.get(codon, 'X')  # 'X' for unknown/non-canonical codons
 
     return protein_seq
 
 
-# --- Hamming Distance (for usernames) ---
+# --- Hamming Distance Function ---
 def hamming_distance(str1, str2):
     """
     Calculates Hamming distance between two strings.
@@ -81,10 +81,11 @@ def hamming_distance(str1, str2):
     return sum(c1 != c2 for c1, c2 in zip(str1, str2))
 
 
-# --- Helper: Translate a dictionary of DNA sequences ---
+# --- Helper Function to Translate Multiple DNA Sequences ---
 def translate_sequences(seq_dict):
     """
     Translates a dictionary of DNA sequences into protein sequences.
+    Logs warnings for inconsistent lengths.
 
     Parameters:
     seq_dict (dict): {sequence_name: dna_sequence}
@@ -92,11 +93,9 @@ def translate_sequences(seq_dict):
     Returns:
     dict: {sequence_name: protein_sequence}
     """
-    # Warn if lengths inconsistent
     seq_lengths = [len(seq) for seq in seq_dict.values()]
     if len(set(seq_lengths)) != 1:
-        logging.warning("DNA sequences have inconsistent lengths.")
-
+        logging.warning("DNA sequences have inconsistent lengths; comparisons may be affected.")
     return {name: dna_to_protein(seq) for name, seq in seq_dict.items()}
 
 
@@ -104,13 +103,12 @@ def translate_sequences(seq_dict):
 dna_sequences = {
     "Seq1": "ATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG",
     "Seq2": "ATGGCCATTGTAATGGGCCGCTGAAGGGCGCCCGATAG",
-    "Seq3": "ATGGCCATTGTAATGGNCCGCTGAAAGGGTGCCCGATAG"
+    "Seq3": "ATGGCCATTGTAATGGNCCGCTGAAAGGGTGCCCGATAG"  # Contains ambiguous 'N'
 }
 
-# Translate DNA sequences
 protein_sequences = translate_sequences(dna_sequences)
 
-# Display results in pandas
+# Display in pandas DataFrame
 df_proteins = pd.DataFrame({
     "DNA Sequence Name": list(protein_sequences.keys()),
     "Protein Sequence": list(protein_sequences.values())
@@ -119,7 +117,7 @@ print("Protein Sequences Table:")
 print(df_proteins, "\n")
 
 
-# --- Hamming Distance Between Slack and Twitter Usernames ---
+# --- Hamming Distance Example ---
 slack_username = "josoga"
 twitter_username = "joseph"
 distance = hamming_distance(slack_username, twitter_username)
@@ -137,7 +135,7 @@ print(df_usernames, "\n")
 def test_dna_to_protein():
     assert dna_to_protein("ATG") == "M"
     assert dna_to_protein("ATGAAATAG") == "MK_"
-    assert dna_to_protein("ATGNNN") == "M-"  # ambiguous codon handled
+    assert dna_to_protein("ATGNNN") == "M-"
     print("dna_to_protein tests passed.")
 
 def test_hamming_distance():
@@ -146,7 +144,6 @@ def test_hamming_distance():
     assert hamming_distance("GTC", "GTC") == 0
     assert hamming_distance("josoga", "joseph") == 3
     print("hamming_distance tests passed.")
-
 
 # Run tests
 test_dna_to_protein()
@@ -163,3 +160,4 @@ Hamming Distance Table:
 
 dna_to_protein tests passed.
 hamming_distance tests passed.
+
