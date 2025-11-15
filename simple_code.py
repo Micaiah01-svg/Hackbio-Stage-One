@@ -1,130 +1,85 @@
-import pandas as pd
-import seaborn as sb
-import matplotlib.pyplot as plt
-import numpy as np
+# DNA to Protein Translation
+def dna_to_protein(dna_seq):
+    """
+    Translates a DNA sequence into a protein sequence.
+    
+    Parameters:
+    dna_seq (str): DNA sequence consisting of 'A', 'T', 'C', 'G'
+    
+    Returns:
+    str: Protein sequence using the standard genetic code
+    """
+    # Validate input
+    if not dna_seq:
+        raise ValueError("DNA sequence must not be empty")
+    if any(nuc not in "ATCGatcg" for nuc in dna_seq):
+        raise ValueError("DNA sequence contains invalid characters")
+    
+    dna_seq = dna_seq.upper()
+    
+    # Standard codon table
+    codon_table = {
+        'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M',
+        'ACA':'T', 'ACC':'T', 'ACG':'T', 'ACT':'T',
+        'AAC':'N', 'AAT':'N', 'AAA':'K', 'AAG':'K',
+        'AGC':'S', 'AGT':'S', 'AGA':'R', 'AGG':'R',
+        'CTA':'L', 'CTC':'L', 'CTG':'L', 'CTT':'L',
+        'CCA':'P', 'CCC':'P', 'CCG':'P', 'CCT':'P',
+        'CAC':'H', 'CAT':'H', 'CAA':'Q', 'CAG':'Q',
+        'CGA':'R', 'CGC':'R', 'CGG':'R', 'CGT':'R',
+        'GTA':'V', 'GTC':'V', 'GTG':'V', 'GTT':'V',
+        'GCA':'A', 'GCC':'A', 'GCG':'A', 'GCT':'A',
+        'GAC':'D', 'GAT':'D', 'GAA':'E', 'GAG':'E',
+        'GGA':'G', 'GGC':'G', 'GGG':'G', 'GGT':'G',
+        'TCA':'S', 'TCC':'S', 'TCG':'S', 'TCT':'S',
+        'TTC':'F', 'TTT':'F', 'TTA':'L', 'TTG':'L',
+        'TAC':'Y', 'TAT':'Y', 'TAA':'_', 'TAG':'_',
+        'TGC':'C', 'TGT':'C', 'TGA':'_', 'TGG':'W',
+    }
+
+    protein_seq = ""
+    
+    # Translate codons
+    for i in range(0, len(dna_seq) - 2, 3):
+        codon = dna_seq[i:i+3]
+        protein_seq += codon_table.get(codon, 'X')  # X for unknown codon
+    
+    return protein_seq
 
 
-# =============================================================
-#                        CODON TABLE
-# =============================================================
-
-CODON_TABLE = {
-    'ATA':'I','ATC':'I','ATT':'I','ATG':'M',
-    'ACA':'T','ACC':'T','ACG':'T','ACT':'T',
-    'AAC':'N','AAT':'N','AAA':'K','AAG':'K',
-    'AGC':'S','AGT':'S','AGA':'R','AGG':'R',
-    'CTA':'L','CTC':'L','CTG':'L','CTT':'L',
-    'CCA':'P','CCC':'P','CCG':'P','CCT':'P',
-    'CAC':'H','CAT':'H','CAA':'Q','CAG':'Q',
-    'CGA':'R','CGC':'R','CGG':'R','CGT':'R',
-    'GTA':'V','GTC':'V','GTG':'V','GTT':'V',
-    'GCA':'A','GCC':'A','GCG':'A','GCT':'A',
-    'GAC':'D','GAT':'D','GAA':'E','GAG':'E',
-    'GGA':'G','GGC':'G','GGG':'G','GGT':'G',
-    'TCA':'S','TCC':'S','TCG':'S','TCT':'S',
-    'TTC':'F','TTT':'F','TTA':'L','TTG':'L',
-    'TAC':'Y','TAT':'Y','TAA':'_','TAG':'_',
-    'TGC':'C','TGT':'C','TGA':'_','TGG':'W',
-}
-
-
-# =============================================================
-#              DNA CLEANING & START CODON SEARCH
-# =============================================================
-
-def clean_dna(seq):
-    """Cleans DNA sequence by keeping only valid nucleotides."""
-    return "".join([base for base in seq.upper() if base in "ATCG"])
+# Hamming Distance
+def hamming_distance(str1, str2):
+    """
+    Calculates the Hamming distance between two strings.
+    Pads the shorter string with spaces if lengths are unequal.
+    
+    Parameters:
+    str1 (str): First string (e.g., Slack username)
+    str2 (str): Second string (e.g., Twitter/X handle)
+    
+    Returns:
+    int: Hamming distance
+    """
+    if not str1 or not str2:
+        raise ValueError("Input strings must not be empty")
+    
+    # Pad shorter string with spaces
+    max_len = max(len(str1), len(str2))
+    str1 = str1.ljust(max_len)
+    str2 = str2.ljust(max_len)
+    
+    # Calculate mismatches
+    mismatches = sum(c1 != c2 for c1, c2 in zip(str1, str2))
+    return mismatches
 
 
-def find_start(seq):
-    """Finds first ATG start codon."""
-    idx = seq.find("ATG")
-    return idx if idx != -1 else None
+# Example Usage:
+dna_seq = "ATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG"
+print("Protein:", dna_to_protein(dna_seq))
 
+slack_username = "josoga"
+twitter_handle = "joseph"
+print("Hamming Distance:", hamming_distance(slack_username, twitter_handle))
+Protein: MAIVMGR_KGAR_
+Hamming Distance: 3
 
-# =============================================================
-#                 DNA → PROTEIN TRANSLATION
-# =============================================================
-
-def translate_dna(sequence):
-    seq = clean_dna(sequence)
-    start = find_start(seq)
-
-    if start is None:
-        return ""
-
-    protein = ""
-
-    for i in range(start, len(seq), 3):
-        codon = seq[i:i+3]
-
-        if len(codon) < 3:
-            break
-
-        aa = CODON_TABLE.get(codon)
-
-        if aa is None:
-            continue
-
-        if aa == "_":  # stop codon
-            break
-
-        protein += aa
-
-    return protein
-
-
-# =============================================================
-#                      HAMMING DISTANCE
-# =============================================================
-
-def pad_strings(a, b, pad="*"):
-    max_len = max(len(a), len(b))
-    return a.ljust(max_len, pad), b.ljust(max_len, pad)
-
-
-def hamming_distance(s1, s2):
-    a, b = pad_strings(s1.lower(), s2.lower())
-    return sum(1 for x, y in zip(a, b) if x != y)
-
-
-# =============================================================
-#                      UNIT TESTS
-# =============================================================
-
-def run_tests():
-    print("Running tests...")
-
-    assert translate_dna("ATGACCTGA") == "MT"
-    assert translate_dna("CCCCCC") == ""
-    assert hamming_distance("abc", "abc") == 0
-    assert hamming_distance("micaiah", "michy") > 0
-
-    print("All tests passed!\n")
-
-
-# =============================================================
-#                        MAIN PROGRAM
-# =============================================================
-
-if __name__ == "__main__":
-    run_tests()
-
-    dna = "ATGACCTGACTGAATAG"
-    protein = translate_dna(dna)
-    print("DNA Sequence:", dna)
-    print("Protein Translation:", protein)
-
-    slack = "micaiah"
-    twitter = "michy"
-    distance = hamming_distance(slack, twitter)
-    print("\nSlack Username:", slack)
-    print("Twitter Handle:", twitter)
-    print("Hamming Distance:", distance)
-DNA Sequence: ATGACCTGACTGAATAG
-Protein Translation: MT
-
-Slack Username: micaiah
-Twitter Handle: michy
-Hamming Distance: 4
