@@ -1,36 +1,37 @@
 import pandas as pd
 import numpy as np
+import logging
 
-# --- DNA to Protein Translation Function ---
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
+# --- DNA to Protein Translation ---
 def dna_to_protein(dna_seq):
     """
     Translates a DNA sequence into a protein sequence.
 
-    Assumptions:
-    - DNA is a coding sequence (no introns).
-    - Translation starts at the first nucleotide.
-    - Codons not divisible by 3 at the end are ignored.
-    - Unknown codons are translated as 'X'.
+    Handles standard nucleotides and ambiguous 'N' codes.
+    Incomplete codons at the end are ignored.
 
     Parameters:
-    dna_seq (str): DNA sequence containing 'A', 'T', 'C', 'G'
+    dna_seq (str): DNA sequence containing A, T, C, G, possibly N
 
     Returns:
     str: Protein sequence
-
-    Raises:
-    ValueError: If input is empty.
     """
     if not dna_seq:
         raise ValueError("DNA sequence must not be empty")
-
+    
     dna_seq = dna_seq.upper()
+    
+    # Check for invalid characters beyond N
+    if any(nuc not in "ATCGN" for nuc in dna_seq):
+        raise ValueError("DNA sequence contains invalid characters")
 
-    # Warn if sequence length is not divisible by 3
+    # Warn if length not divisible by 3
     if len(dna_seq) % 3 != 0:
-        print("Warning: Sequence length not divisible by 3; last incomplete codon ignored.")
+        logging.warning("Sequence length not divisible by 3; last incomplete codon ignored.")
 
-    # Standard codon table
     codon_table = {
         'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M',
         'ACA':'T', 'ACC':'T', 'ACG':'T', 'ACT':'T',
@@ -51,19 +52,22 @@ def dna_to_protein(dna_seq):
     }
 
     protein_seq = ""
-    # Translate codons into amino acids
-    for i in range(0, len(dna_seq) - 2, 3):
+    for i in range(0, len(dna_seq)-2, 3):
         codon = dna_seq[i:i+3]
-        protein_seq += codon_table.get(codon, 'X')  # 'X' for unknown codons
+        if 'N' in codon:
+            logging.warning(f"Codon '{codon}' contains ambiguous nucleotide 'N'; skipping.")
+            protein_seq += '-'  # Use '-' to indicate skipped/ambiguous codon
+        else:
+            protein_seq += codon_table.get(codon, 'X')  # 'X' for unknown codons
 
     return protein_seq
 
 
-# --- Hamming Distance Function (for usernames) ---
+# --- Hamming Distance (for usernames) ---
 def hamming_distance(str1, str2):
     """
     Calculates Hamming distance between two strings.
-    Pads shorter string with spaces for comparison.
+    Pads shorter string with spaces for alignment.
 
     Parameters:
     str1, str2 (str): Strings to compare
@@ -77,22 +81,36 @@ def hamming_distance(str1, str2):
     return sum(c1 != c2 for c1, c2 in zip(str1, str2))
 
 
+# --- Helper: Translate a dictionary of DNA sequences ---
+def translate_sequences(seq_dict):
+    """
+    Translates a dictionary of DNA sequences into protein sequences.
+
+    Parameters:
+    seq_dict (dict): {sequence_name: dna_sequence}
+
+    Returns:
+    dict: {sequence_name: protein_sequence}
+    """
+    # Warn if lengths inconsistent
+    seq_lengths = [len(seq) for seq in seq_dict.values()]
+    if len(set(seq_lengths)) != 1:
+        logging.warning("DNA sequences have inconsistent lengths.")
+
+    return {name: dna_to_protein(seq) for name, seq in seq_dict.items()}
+
+
 # --- Example DNA Sequences ---
 dna_sequences = {
     "Seq1": "ATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG",
     "Seq2": "ATGGCCATTGTAATGGGCCGCTGAAGGGCGCCCGATAG",
-    "Seq3": "ATGGCCATTGTAATGGAACGCTGAAAGGGTGCCCGATAG"
+    "Seq3": "ATGGCCATTGTAATGGNCCGCTGAAAGGGTGCCCGATAG"
 }
 
-# Warn if DNA sequences have inconsistent lengths
-seq_lengths = [len(seq) for seq in dna_sequences.values()]
-if len(set(seq_lengths)) != 1:
-    print("Warning: DNA sequences have inconsistent lengths. Pairwise comparisons may be affected.")
+# Translate DNA sequences
+protein_sequences = translate_sequences(dna_sequences)
 
-# Translate DNA sequences to proteins
-protein_sequences = {name: dna_to_protein(seq) for name, seq in dna_sequences.items()}
-
-# Display DNA and Protein sequences in a pandas DataFrame
+# Display results in pandas
 df_proteins = pd.DataFrame({
     "DNA Sequence Name": list(protein_sequences.keys()),
     "Protein Sequence": list(protein_sequences.values())
@@ -104,13 +122,12 @@ print(df_proteins, "\n")
 # --- Hamming Distance Between Slack and Twitter Usernames ---
 slack_username = "josoga"
 twitter_username = "joseph"
-username_distance = hamming_distance(slack_username, twitter_username)
+distance = hamming_distance(slack_username, twitter_username)
 
-# Display in pandas DataFrame
 df_usernames = pd.DataFrame({
     "Slack Username": [slack_username],
     "Twitter Username": [twitter_username],
-    "Hamming Distance": [username_distance]
+    "Hamming Distance": [distance]
 })
 print("Hamming Distance Table:")
 print(df_usernames, "\n")
@@ -120,7 +137,7 @@ print(df_usernames, "\n")
 def test_dna_to_protein():
     assert dna_to_protein("ATG") == "M"
     assert dna_to_protein("ATGAAATAG") == "MK_"
-    assert dna_to_protein("ATGNNN") == "MX"
+    assert dna_to_protein("ATGNNN") == "M-"  # ambiguous codon handled
     print("dna_to_protein tests passed.")
 
 def test_hamming_distance():
@@ -130,14 +147,15 @@ def test_hamming_distance():
     assert hamming_distance("josoga", "joseph") == 3
     print("hamming_distance tests passed.")
 
-# Run unit tests
+
+# Run tests
 test_dna_to_protein()
 test_hamming_distance()
 Protein Sequences Table:
   DNA Sequence Name Protein Sequence
 0              Seq1    MAIVMGR_KGAR_
 1              Seq2     MAIVMGR_RAPD
-2              Seq3    MAIVMER_KGAR_ 
+2              Seq3    MAIVM-R_KGAR_ 
 
 Hamming Distance Table:
   Slack Username Twitter Username  Hamming Distance
